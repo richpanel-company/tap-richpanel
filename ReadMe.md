@@ -1,4 +1,4 @@
-# tap-zendesk
+# tap-richpanel
 Tap for Richpanel
 
 ## Installation
