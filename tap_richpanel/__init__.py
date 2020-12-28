@@ -1,110 +1,152 @@
 #!/usr/bin/env python3
-import os
-import json
+
 import singer
-from singer import utils, metadata
-from singer.catalog import Catalog, CatalogEntry
-from singer.schema import Schema
+import argparse
+import json
+from python_graphql_client import GraphqlClient
 
+# Instantiate the client with an endpoint.
+client = GraphqlClient(endpoint="https://graph.richpanel.com/data-api")
 
-REQUIRED_CONFIG_KEYS = ["start_date", "username", "password"]
-LOGGER = singer.get_logger()
+REQUIRED_CONFIG_KEYS = ['api_key']
+STATE = {}
+CONFIG = {}
 
+logger = singer.get_logger()
 
-def get_abs_path(path):
-    return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
+def write_schema_from_header(entity, header, keys):
+    schema =    {
+                    "type": "object",
+                    "properties": {}
+                }
+    header_map = []
+    for column in header:
+        #for now everything is a string; ideas for later:
+        #1. intelligently detect data types based on a sampling of entries from the raw data
+        #2. by default everything is a string, but allow entries in config.json to hard-type columns by name
+        schema["properties"][column] = {"type": "string" } 
+        header_map.append(column)
 
+    singer.write_schema(entity, schema, keys) 
 
-def load_schemas():
-    """ Load schemas from schemas folder """
-    schemas = {}
-    for filename in os.listdir(get_abs_path('schemas')):
-        path = get_abs_path('schemas') + '/' + filename
-        file_raw = filename.replace('.json', '')
-        with open(path) as file:
-            schemas[file_raw] = Schema.from_dict(json.load(file))
-    return schemas
+    return header_map
 
+def parse_args(required_config_keys):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', help='Config file', required=True)
+    parser.add_argument('-s', '--state', help='State file')
+    args = parser.parse_args()
 
-def discover():
-    raw_schemas = load_schemas()
-    streams = []
-    for stream_id, schema in raw_schemas.items():
-        # TODO: populate any metadata and stream's key properties here..
-        stream_metadata = []
-        key_properties = []
-        streams.append(
-            CatalogEntry(
-                tap_stream_id=stream_id,
-                stream=stream_id,
-                schema=schema,
-                key_properties=key_properties,
-                metadata=stream_metadata,
-                replication_key=None,
-                is_view=None,
-                database=None,
-                table=None,
-                row_count=None,
-                stream_alias=None,
-                replication_method=None,
-            )
-        )
-    return Catalog(streams)
+    config = load_json(args.config)
+    check_config(config, required_config_keys)
 
-
-def sync(config, state, catalog):
-    """ Sync data from tap source """
-    # Loop over selected streams in catalog
-    for stream in catalog.get_selected_streams(state):
-        LOGGER.info("Syncing stream:" + stream.tap_stream_id)
-
-        bookmark_column = stream.replication_key
-        is_sorted = True  # TODO: indicate whether data is sorted ascending on bookmark value
-
-        singer.write_schema(
-            stream_name=stream.tap_stream_id,
-            schema=stream.schema,
-            key_properties=stream.key_properties,
-        )
-
-        # TODO: delete and replace this inline function with your own data retrieval process:
-        tap_data = lambda: [{"id": x, "name": "row${x}"} for x in range(1000)]
-
-        max_bookmark = None
-        for row in tap_data():
-            # TODO: place type conversions or transformations here
-
-            # write one or more rows to the stream:
-            singer.write_records(stream.tap_stream_id, [row])
-            if bookmark_column:
-                if is_sorted:
-                    # update bookmark to latest value
-                    singer.write_state({stream.tap_stream_id: row[bookmark_column]})
-                else:
-                    # if data unsorted, save max value until end of writes
-                    max_bookmark = max(max_bookmark, row[bookmark_column])
-        if bookmark_column and not is_sorted:
-            singer.write_state({stream.tap_stream_id: max_bookmark})
-    return
-
-
-@utils.handle_top_exception(LOGGER)
-def main():
-    # Parse command line arguments
-    args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-
-    # If discover flag was passed, run discovery mode and dump output to stdout
-    if args.discover:
-        catalog = discover()
-        catalog.dump()
-    # Otherwise run in sync mode
+    if args.state:
+        state = load_json(args.state)
     else:
-        if args.catalog:
-            catalog = args.catalog
-        else:
-            catalog = discover()
-        sync(args.config, args.state, catalog)
+        state = {}
+
+    return config, state
+
+def load_json(path):
+    with open(path) as f:
+        return json.load(f)
+
+def check_config(config, required_keys):
+    missing_keys = [key for key in required_keys if key not in config]
+    if missing_keys:
+        raise Exception("Config is missing required keys: {}".format(missing_keys))
+
+conversation_schema = {
+    'properties':   {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            "id": {
+                "type": "string"
+            }
+        }
+    },
+}
+
+customer_schema = {
+    'properties':   {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            "id": {
+                "type": "string"
+            }
+        }
+    },
+}
+
+def process_conversation():
+    start_date = CONFIG['start_date']
+    query = """
+        query {
+            Conversation {
+                totalCount
+                nodes {
+                    id
+                    status
+                    email
+                    type
+                    rating
+                }
+            }
+        }
+    """
+
+    singer.write_schema('conversation', conversation_schema, 'id')
+    # Synchronous request
+    data = client.execute(query=query)
+
+    records = data['data']['Conversation']['nodes']
+    singer.write_records('conversation', records)
+
+def process_customer():
+    start_date = CONFIG['start_date']
+
+    query = """
+        query {
+            Customer {
+                totalCount
+                nodes {
+                    id
+                    firstName
+                    lastName
+                    email
+                    createdAt
+                    updatedAt
+                }
+            }
+        }
+    """
+
+    singer.write_schema('customer', customer_schema, 'id')
+    # Synchronous request
+    data = client.execute(query=query)
+
+    records = data['data']['Customer']['nodes']
+    singer.write_records('customer', records)
+
+def do_sync():
+    logger.info("Starting sync")
+
+    api_key = CONFIG['api_key']
+    client.inject_token(api_key,'x-richpanel-key')
+
+    process_conversation()
+    process_customer()
+
+    logger.info("Sync completed")
+
+def main():
+    config, state = parse_args(REQUIRED_CONFIG_KEYS)
+    CONFIG.update(config)
+    STATE.update(state)
+    do_sync()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
