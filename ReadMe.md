@@ -41,7 +41,7 @@ It can be generated from **Settings => Advanced Settings => API Settings**
 {
   "properties":   {
       "type": "object",
-      "additionalProperties": True,
+      "additionalProperties": true,
       "properties": {
           "publicId": {
               "type": "string"
@@ -107,7 +107,7 @@ It can be generated from **Settings => Advanced Settings => API Settings**
 {
   "properties":   {
       "type": "object",
-      "additionalProperties": True,
+      "additionalProperties": true,
       "properties": {
           "id": {
               "type": "string"
