@@ -11,7 +11,8 @@ setup(
     py_modules=["tap_richpanel"],
     install_requires=[
         "singer-python",
-        'python_graphql_client'
+        'requests==2.20.0',
+        'backoff==1.8.0'
     ],
     entry_points="""
         [console_scripts]
@@ -19,7 +20,9 @@ setup(
     """,
     packages=["tap_richpanel"],
     package_data = {
-        "schemas": []
+        "schemas": [
+            'conversations.json'
+        ]
     },
     include_package_data=True,
 )

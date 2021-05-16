@@ -1,0 +1,21 @@
+{
+  "items": {
+    "properties": {
+      "id": {
+        "type": [
+          "null",
+          "integer"
+        ]
+      },
+      "value": { }
+    },
+    "type": [
+      "null",
+      "object"
+    ]
+  },
+  "type": [
+    "null",
+    "array"
+  ]
+}

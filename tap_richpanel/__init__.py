@@ -3,16 +3,62 @@
 import singer
 import argparse
 import json
-from python_graphql_client import GraphqlClient
+import sys
+import time
+import backoff
+import requests
+from requests.exceptions import HTTPError
+
+from tap_richpanel import utils
+
+# from python_graphql_client import GraphqlClient
 
 # Instantiate the client with an endpoint.
-client = GraphqlClient(endpoint="https://graph.richpanel.com/data-api")
+# client = GraphqlClient(endpoint="https://graph.richpanel.com/data-api")
 
 REQUIRED_CONFIG_KEYS = ['api_key']
+BASE_URL = "https://api.richpanel.com"
+PER_PAGE = 10
 STATE = {}
 CONFIG = {}
 
+endpoints = {
+    "tickets": "/v1/tickets",
+    "sub_ticket": "/v1/tickets/{id}"
+}
+
 logger = singer.get_logger()
+session = requests.Session()
+
+def get_url(endpoint, **kwargs):
+    return BASE_URL + endpoints[endpoint].format(**kwargs)
+
+@backoff.on_exception(backoff.expo,
+                      (requests.exceptions.RequestException),
+                      max_tries=5,
+                      giveup=lambda e: e.response is not None and 400 <= e.response.status_code < 500,
+                      factor=2)
+@utils.ratelimit(1, 2)
+def request(url, params=None):
+    params = params or {}
+    headers = {
+        "x-richpanel-key": CONFIG['api_key']
+    }
+
+    req = requests.Request('GET', url, params=params, headers=headers).prepare()
+    logger.info("GET {}".format(req.url))
+    resp = session.send(req)
+
+    if 'Retry-After' in resp.headers:
+        retry_after = int(resp.headers['Retry-After'])
+        logger.info("Rate limit reached. Sleeping for {} seconds".format(retry_after))
+        time.sleep(retry_after)
+        return request(url, params)
+
+    resp.raise_for_status()
+
+    return resp
+
 
 def write_schema_from_header(entity, header, keys):
     schema =    {
@@ -56,96 +102,84 @@ def check_config(config, required_keys):
     if missing_keys:
         raise Exception("Config is missing required keys: {}".format(missing_keys))
 
-conversation_schema = {
-    'properties':   {
-        "type": "object",
-        "additionalProperties": True,
-        "properties": {
-            "id": {
-                "type": "string"
-            }
-        }
-    },
-}
+def process_tickets():
+    bookmark_property = 'updated_at'
+    state_entity = 'tickets'
 
-customer_schema = {
-    'properties':   {
-        "type": "object",
-        "additionalProperties": True,
-        "properties": {
-            "id": {
-                "type": "string"
-            }
-        }
-    },
-}
+    start = get_start(state_entity)
 
-def process_conversation():
-    start_date = CONFIG['start_date']
-    query = """
-        query {
-            Conversation {
-                totalCount
-                nodes {
-                    id
-                    status
-                    email
-                    type
-                    rating
-                }
-            }
-        }
-    """
+    params = {
+        'updated_since': start
+    }
 
-    singer.write_schema('conversation', conversation_schema, 'id')
+    # start_date = CONFIG['start_date']
+    singer.write_schema('tickets', utils.load_schema("tickets"), ['id'])
     # Synchronous request
-    data = client.execute(query=query)
+    for row in gen_request(get_url("tickets"), params):
+        # utils.update_state(STATE, state_entity, row[bookmark_property])
+        singer.write_records('tickets', row)
+        # singer.write_state(STATE)
 
-    records = data['data']['Conversation']['nodes']
-    singer.write_records('conversation', records)
 
 def process_customer():
-    start_date = CONFIG['start_date']
+    start_date = CONFIG.get('start_date', None)
+    pass
 
-    query = """
-        query {
-            Customer {
-                totalCount
-                nodes {
-                    id
-                    firstName
-                    lastName
-                    email
-                    createdAt
-                    updatedAt
-                }
-            }
-        }
-    """
+def get_start(entity):
+    if entity not in STATE:
+        STATE[entity] = CONFIG.get('start_date', None)
+    return STATE[entity]
 
-    singer.write_schema('customer', customer_schema, 'id')
-    # Synchronous request
-    data = client.execute(query=query)
+def gen_request(url, params=None):
+    params = params or {}
+    params["per_page"] = PER_PAGE
+    page = 1
+    while True:
+        params['page'] = page
+        data = request(url, params).json()
+        for row in data['ticket']:
+            yield row
 
-    records = data['data']['Customer']['nodes']
-    singer.write_records('customer', records)
+        if len(data['ticket']) == PER_PAGE:
+            page += 1
+        else:
+            break
 
 def do_sync():
     logger.info("Starting sync")
 
-    api_key = CONFIG['api_key']
-    client.inject_token(api_key,'x-richpanel-key')
+    # api_key = CONFIG['api_key']
+    # client.inject_token(api_key,'x-richpanel-key')
 
-    process_conversation()
-    process_customer()
+    # process_conversation()
+    # process_customer()
 
+    try:
+        process_tickets()
+    except HTTPError as e:
+        logger.critical(
+            "Error making request to Richpanel API: GET %s: [%s - %s]",
+            e.request.url, e.response.status_code, e.response.content)
+        sys.exit(1)
     logger.info("Sync completed")
 
-def main():
-    config, state = parse_args(REQUIRED_CONFIG_KEYS)
+def main_impl():
+    config, state = utils.parse_args(REQUIRED_CONFIG_KEYS)
     CONFIG.update(config)
     STATE.update(state)
     do_sync()
+
+def main():
+    # config, state = parse_args(REQUIRED_CONFIG_KEYS)
+    # CONFIG.update(config)
+    # STATE.update(state)
+    # do_sync()
+
+    try:
+        main_impl()
+    except Exception as exc:
+        logger.critical(exc)
+        raise exc
 
 
 if __name__ == '__main__':

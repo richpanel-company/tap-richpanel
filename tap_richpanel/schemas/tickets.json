@@ -1,0 +1,100 @@
+{
+  "properties": {
+    "id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "organization_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": [
+        "null",
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "assignee_id": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "priority": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "recipient": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "status": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "subject": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "via": {"$ref": "shared/via.json"},
+    "url": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "tags": {
+      "items": {
+        "type": [
+          "null",
+          "string"
+        ]
+      },
+      "type": [
+        "null",
+        "array"
+      ]
+    },
+
+    "custom_fields": {"$ref": "shared/custom_fields.json"},
+
+    "satisfaction_rating": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "score": {
+            "type": ["null", "string"]
+        },
+        "comment": {
+            "type": ["null", "string"]
+        }
+      }
+    }
+  },
+  "type": [
+    "null",
+    "object"
+  ]
+}
