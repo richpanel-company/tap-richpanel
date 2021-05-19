@@ -8,8 +8,8 @@ Clone this repository, and then:
 
 ```bash
 › cd richpanel-tap
-› python3 -m venv ~/.virtualenvs/richpanel-tap
-› source ~/.virtualenvs/richpanel-tap/bin/activate
+› python3 -m venv ~/.virtualenvs/tap-richpanel
+› source ~/.virtualenvs/tap-richpanel/bin/activate
 › pip install -e .
 ```
 
@@ -19,7 +19,7 @@ Clone this repository, and then:
 
 ```bash
 
-richpanel-tap -c sample_config.json --discover
+richpanel-tap -c sample_config.json
 
 ```
 
@@ -40,3 +40,15 @@ It can be generated from **Settings => Advanced Settings => API Settings**
 ## Schema
 
 Check in Repository
+
+
+## Test with CSV
+
+```
+pip install target-csv
+```
+
+
+```
+
+```

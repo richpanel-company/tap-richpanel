@@ -117,7 +117,7 @@ def process_tickets():
     # Synchronous request
     for row in gen_request(get_url("tickets"), params):
         # utils.update_state(STATE, state_entity, row[bookmark_property])
-        singer.write_records('tickets', row)
+        singer.write_record('tickets', row)
         # singer.write_state(STATE)
 
 
