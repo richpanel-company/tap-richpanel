@@ -16,7 +16,7 @@ from tap_richpanel import utils
 # Instantiate the client with an endpoint.
 # client = GraphqlClient(endpoint="https://graph.richpanel.com/data-api")
 
-REQUIRED_CONFIG_KEYS = ['api_key']
+REQUIRED_CONFIG_KEYS = ['api_key', 'start_date']
 BASE_URL = "https://api.richpanel.com"
 PER_PAGE = 10
 STATE = {}
@@ -109,16 +109,16 @@ def process_tickets():
     start = get_start(state_entity)
 
     params = {
-        'updated_since': start
+        'updated_at': start
     }
 
     # start_date = CONFIG['start_date']
     singer.write_schema('tickets', utils.load_schema("tickets"), ['id'])
     # Synchronous request
     for row in gen_request(get_url("tickets"), params):
-        # utils.update_state(STATE, state_entity, row[bookmark_property])
+        utils.update_state(STATE, state_entity, row[bookmark_property])
         singer.write_record('tickets', row)
-        # singer.write_state(STATE)
+        singer.write_state(STATE)
 
 
 def process_customer():

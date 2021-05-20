@@ -48,7 +48,12 @@ Check in Repository
 pip install target-csv
 ```
 
+## Saving & Loading state
 
 ```
+richpanel-tap -c config.json | target-csv >> state.json
+```
 
+```
+richpanel-tap -c config.json --state state.json | target-csv 
 ```
