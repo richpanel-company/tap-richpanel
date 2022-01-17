@@ -51,7 +51,7 @@ pip install target-csv
 ## Saving & Loading state
 
 ```
-richpanel-tap -c config.json | target-csv >> state.json
+richpanel-tap -c config.json | target-csv > state.json
 ```
 
 ```
