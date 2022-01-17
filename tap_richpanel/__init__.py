@@ -137,11 +137,15 @@ def gen_request(url, params=None):
     while True:
         params['page'] = page
         data = request(url, params).json()
-        for row in data['ticket']:
-            yield row
 
-        if len(data['ticket']) == PER_PAGE:
-            page += 1
+        if 'ticket' in data:
+            for row in data['ticket']:
+                yield row
+
+            if len(data['ticket']) == PER_PAGE:
+                page += 1
+            else:
+                break
         else:
             break
 
