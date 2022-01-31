@@ -57,3 +57,12 @@ richpanel-tap -c config.json | target-csv > state.json
 ```
 richpanel-tap -c config.json --state state.json | target-csv 
 ```
+
+## Trying Stitch Target
+```
+pip install target-stitch
+```
+
+```
+richpanel-tap -c sample_config.json | target-stitch --config stitch-config.json
+```
