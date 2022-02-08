@@ -106,7 +106,7 @@ def process_tickets():
     bookmark_property = 'updated_at'
     state_entity = 'tickets'
 
-    start = get_start(state_entity)
+    start = get_start(bookmark_property)
 
     params = {
         'updated_at': start
